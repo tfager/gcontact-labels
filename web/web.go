@@ -69,30 +69,32 @@ type ReqAuthPageData struct {
 	Url string
 }
 
-func StartWebServer(config *oauth2.Config) {
-	// Get the URL to OAuth2 consent page
-	url := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-
-	// TODO: handle content types
+func StartWebServer(authCodeUrl string, code *string) {
+	handler := http.NewServeMux()
 	fs := http.FileServer(http.Dir("./static"))
-	http.Handle("/static/", http.StripPrefix("/static/", fs))
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	server := http.Server{Addr: ":8080", Handler: handler}
+	handler.Handle("/static/", http.StripPrefix("/static/", fs))
+	handler.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		data := ReqAuthPageData{
-			Url: url,
+			Url: authCodeUrl,
 		}
 		fmt.Printf("Data.url = %v\n", data.Url)
 		serveTemplate(w, r, data)
 	})
 
 	// Create a handler to handle the callback from the OAuth2 consent page
-	http.HandleFunc("/oauth2callback", func(w http.ResponseWriter, r *http.Request) {
+	handler.HandleFunc("/oauth2callback", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Printf("OAuth2 callback called\n")
 		// Get the authorization code from the request
-		code := r.URL.Query().Get("code")
-		if code == "" {
+		*code = r.URL.Query().Get("code")
+		if *code == "" {
 			log.Fatal("Code not found in OAuth callback")
 		}
 		fmt.Fprintf(w, "Code received, you may now close this browser window")
+		go func() {
+			server.Shutdown(context.Background())
+		}()
 	})
-	fmt.Printf("Starting server on http://localhost:8080\n")
-	http.ListenAndServe(":8080", nil)
+	fmt.Printf("Starting server on http://localhost:8080/index.html\n")
+	server.ListenAndServe()
 }
