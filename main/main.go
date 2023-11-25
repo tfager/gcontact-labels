@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -13,29 +12,8 @@ import (
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
-	"google.golang.org/api/option"
 	"google.golang.org/api/people/v1"
 )
-
-func FetchContacts(client *http.Client) {
-	ctx := context.Background()
-	srv, err := people.NewService(ctx, option.WithHTTPClient(client))
-	if err != nil {
-		log.Fatalf("Unable to create people Client %v", err)
-	}
-	contacts, err := contacts.GetContacts(srv)
-	if err != nil {
-		log.Fatalf("Unable to retrieve contacts: %v", err)
-	}
-
-	if len(contacts) > 0 {
-		for _, c := range contacts {
-			fmt.Printf("%s\n", c.Name)
-		}
-	} else {
-		fmt.Print("No connections found.")
-	}
-}
 
 func main() {
 	b, err := os.ReadFile("credentials.json")
@@ -63,23 +41,36 @@ func main() {
 
 	//FetchContacts(client)
 	peopleService, err := contacts.CreateService(client)
+	if err != nil {
+		log.Fatalf("Unable to create people service: %v", err)
+	}
 
 	// Get command from command line arguments with a parser library
 	var groupId string
 	flag.StringVar(&groupId, "group", "", "Group ID to get contacts from")
 	flag.Parse()
-	fmt.Printf("Command = %s\n", flag.Args()[0])
 
-	if flag.Args()[0] == "group" {
+	if flag.Args()[0] == "contacts" {
+		if groupId == "" {
+			log.Fatalf("Group ID is required")
+		}
 		contacts, err := contacts.GetContactGroupMembers(peopleService, groupId)
 		if err != nil {
 			log.Fatalf("Unable to retrieve contacts: %v", err)
 		}
-		fmt.Printf("Contacts: %v\n", contacts)
-	} else if flag.Args()[0] == "allgroups" {
-		contacts.GetContactGroups(peopleService)
+		for _, contact := range contacts {
+			fmt.Printf("Contact: %v, %v, %v, %v\n", contact.Name, contact.StreetAddress, contact.City, contact.PostalCode)
+		}
+	} else if flag.Args()[0] == "groups" {
+		groups, err := contacts.GetContactGroups(peopleService)
+		if err != nil {
+			log.Fatalf("Unable to retrieve contacts: %v", err)
+		}
+		for _, group := range groups {
+			fmt.Printf("%v, %v\n", group.Name, group.Id)
+		}
 	} else {
-		fmt.Println("Invalid command")
+		fmt.Println("Invalid command. Usage: contacts groups|contacts -group <group id>")
 	}
 
 }

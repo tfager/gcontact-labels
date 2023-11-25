@@ -15,10 +15,19 @@ import (
 
 var tokenFile = "token.json"
 
+const CARD_TEXT_FIELD = "Joulukorttiteksti"
+
 // Define Contact struct
 type Contact struct {
 	Name          string
 	StreetAddress string
+	City          string
+	PostalCode    string
+}
+
+type ContactGroup struct {
+	Name string
+	Id   string
 }
 
 // Retrieve a token, saves the token, then returns the generated client.
@@ -76,50 +85,40 @@ func CreateService(client *http.Client) (*people.Service, error) {
 	return srv, nil
 }
 
-// Get contacts from Google People API
-func GetContacts(peopleService *people.Service) ([]*Contact, error) {
-	// Create a new call to people api
-	call := peopleService.People.Connections.List("people/me")
-	call = call.PersonFields("names,addresses")
-	call = call.PageSize(20)
+func parseContact(contact *people.Person) *Contact {
+	// Create a new contact
+	c := &Contact{}
 
-	// Get response from people api
-	res, err := call.Do()
-	if err != nil {
-		return nil, err
+	// Check for card text
+	for _, u := range contact.UserDefined {
+		if u.Key == CARD_TEXT_FIELD {
+			c.Name = u.Value
+		}
+	}
+	// Check if contact has a name
+	if c.Name == "" && len(contact.Names) > 0 {
+		c.Name = contact.Names[0].DisplayName
 	}
 
-	// Create a slice of contacts
-	var contacts []*Contact
-
-	// Loop through response and add contacts to slice
-	for _, c := range res.Connections {
-		// Create a new contact
-		contact := &Contact{}
-
-		// Check if contact has a name
-		if len(c.Names) > 0 {
-			contact.Name = c.Names[0].DisplayName
-		}
-
-		// Check if contact has an email
-		if len(c.Addresses) > 0 {
-			contact.StreetAddress = c.Addresses[0].StreetAddress
-		}
-
-		// Add contact to slice
-		contacts = append(contacts, contact)
+	// Check if contact has an email
+	if len(contact.Addresses) > 0 {
+		c.StreetAddress = contact.Addresses[0].StreetAddress
 	}
 
-	// Return slice of contacts
-	return contacts, nil
+	// Check if contact has an email
+	if len(contact.Addresses) > 0 {
+		c.City = contact.Addresses[0].City
+		c.PostalCode = contact.Addresses[0].PostalCode
+	}
+
+	return c
 }
 
 // Get contacts from Google People API
-func GetContactGroups(peopleService *people.Service) ([]string, error) {
+func GetContactGroups(peopleService *people.Service) ([]*ContactGroup, error) {
 	// Create a new call to people api
 	call := peopleService.ContactGroups.List()
-	call = call.PageSize(20)
+	call = call.PageSize(100)
 
 	// Get response from people api
 	res, err := call.Do()
@@ -127,18 +126,20 @@ func GetContactGroups(peopleService *people.Service) ([]string, error) {
 		return nil, err
 	}
 
+	var groups []*ContactGroup
 	// Loop through response and add contacts to slice
 	for _, c := range res.ContactGroups {
-		fmt.Printf("%v, %v, %v\n", c.Name, c.FormattedName, c.ResourceName)
+		group := &ContactGroup{
+			Name: c.Name,
+			Id:   c.ResourceName,
+		}
+		groups = append(groups, group)
 	}
 
-	// TODO: Return slice of contacts
-	return []string{}, nil
+	return groups, nil
 }
 
-func GetContactGroupMembers(peopleService *people.Service, groupId string) ([]string, error) {
-	// Create a new call to people api
-	fmt.Printf("Getting group members for group %v\n", groupId)
+func GetContactGroupMembers(peopleService *people.Service, groupId string) ([]*Contact, error) {
 	call := peopleService.ContactGroups.Get(groupId)
 	call = call.MaxMembers(100)
 
@@ -156,15 +157,14 @@ func GetContactGroupMembers(peopleService *people.Service, groupId string) ([]st
 		return nil, err
 	}
 
+	var contacts []*Contact
 	// Loop through response and add contacts to slice
 	for _, r := range batchRes.Responses {
 		person := r.Person
-		fmt.Printf("Contact: %v, %v, %v, %v\n", person.Names[0].DisplayName, person.Addresses[0].StreetAddress, person.Addresses[0].PostalCode, person.Addresses[0].City)
-		for _, u := range person.UserDefined {
-			fmt.Printf("User defined: %v, %v\n", u.Key, u.Value)
-		}
+		contact := parseContact(person)
+		contacts = append(contacts, contact)
 	}
 
 	// Return slice of contacts
-	return res.MemberResourceNames, nil
+	return contacts, nil
 }
