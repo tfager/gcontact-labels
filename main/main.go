@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"gcontact-labels/contacts"
+	"gcontact-labels/labels"
 	"gcontact-labels/web"
 
 	"golang.org/x/oauth2"
@@ -61,6 +62,8 @@ func main() {
 		for _, contact := range contacts {
 			fmt.Printf("Contact: %v, %v, %v, %v\n", contact.Name, contact.StreetAddress, contact.City, contact.PostalCode)
 		}
+		labels.GenerateAddressLabels(contacts, 8, 3)
+
 	} else if flag.Args()[0] == "groups" {
 		groups, err := contacts.GetContactGroups(peopleService)
 		if err != nil {
