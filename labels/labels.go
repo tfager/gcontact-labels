@@ -18,13 +18,18 @@ func GenerateAddressLabels(entries []*contacts.Contact, rows, columns int) {
 	}
 	defer file.Close()
 
-	// Initialize the SVG encoder
 	canvas := svg.New(file)
-	width := 595
-	height := 842
-	canvas.Start(width, height) // A4 paper size in pixels (assuming 72 DPI)
-	labelWidth := width / columns
-	labelHeight := height / rows
+	// A4 paper size in pixels (assuming 300 DPI)
+	width := 2480
+	height := 3508
+	canvas.Start(width, height)
+	leftMargin := 60
+	topMargin := 60
+	labelWidth := (width - 2*leftMargin) / columns
+	labelHeight := (height - 2*topMargin) / rows
+	fontSize := 40
+	style := fmt.Sprintf("font-size:%dpx; font-family:Liberation Sans, Arial", fontSize)
+	rowSpacing := 50
 
 	// Generate the address labels
 	for i := 0; i < len(entries); i++ {
@@ -35,10 +40,9 @@ func GenerateAddressLabels(entries []*contacts.Contact, rows, columns int) {
 		y := i / columns * labelHeight
 
 		// Write the contact information on the label
-		style := "font-size:10"
-		canvas.Text(x+10, y+20, entry.Name, style)
-		canvas.Text(x+10, y+35, entry.StreetAddress, style)
-		canvas.Text(x+10, y+50, fmt.Sprintf("%s %s", entry.PostalCode, entry.City), style)
+		canvas.Text(x+leftMargin, y+topMargin, entry.Name, style)
+		canvas.Text(x+leftMargin, y+topMargin+rowSpacing, entry.StreetAddress, style)
+		canvas.Text(x+leftMargin, y+topMargin+2*rowSpacing, fmt.Sprintf("%s %s", entry.PostalCode, entry.City), style)
 	}
 
 	// End the SVG encoding
